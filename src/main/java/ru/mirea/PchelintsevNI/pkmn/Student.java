@@ -1,10 +1,13 @@
 package ru.mirea.PchelintsevNI.pkmn;
 
-public class Student {
+import java.io.Serializable;
+
+public class Student implements Serializable {
     private String firstName;
     private String surName;
     private String familyName;
     private String group;
+    private static final long serialVersionUID = 1L;
 
     public Student(String firstName, String surName, String familyName, String group) {
         this.firstName = firstName;

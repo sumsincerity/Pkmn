@@ -1,10 +1,13 @@
 package ru.mirea.PchelintsevNI.pkmn;
 
-public class AttackSkill {
+import java.io.Serializable;
+
+public class AttackSkill implements Serializable {
     private String name;
     private String description;
     private String cost;
     private int damage;
+    private static final long serialVersionUID = 1L;
 
     @Override
     public String toString() {

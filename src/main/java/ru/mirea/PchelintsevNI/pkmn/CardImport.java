@@ -1,8 +1,6 @@
 package ru.mirea.PchelintsevNI.pkmn;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -60,5 +58,21 @@ public class CardImport {
         }
 
         return card;
+    }
+
+    public Card importCardByte(String filename) {
+        Card card = null;
+
+        try (FileInputStream fileIn = new FileInputStream(filename);
+             ObjectInputStream objectIn = new ObjectInputStream(fileIn)) {
+
+            card = (Card) objectIn.readObject(); // Десериализация объекта
+        } catch (IOException e) {
+            System.err.println("Error while importing card: " + e.getMessage());
+        } catch (ClassNotFoundException e) {
+            System.err.println("Card class not found: " + e.getMessage());
+        }
+
+        return card; // Возвращаем десериализованный объект
     }
 }

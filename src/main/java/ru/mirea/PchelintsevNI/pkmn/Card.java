@@ -1,8 +1,9 @@
 package ru.mirea.PchelintsevNI.pkmn;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class Card {
+public class Card implements Serializable {
     public Card() {
     }
 
@@ -23,6 +24,7 @@ public class Card {
                 ", pokemonOwner=" + pokemonOwner +
                 '}';
     }
+    private static final long serialVersionUID = 1L;
 
     public PokemonStage getPokemonStage() {
         return pokemonStage;

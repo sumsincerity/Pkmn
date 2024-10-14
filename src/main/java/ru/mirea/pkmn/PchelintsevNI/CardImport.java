@@ -1,8 +1,9 @@
-package ru.mirea.PchelintsevNI.pkmn;
+package ru.mirea.pkmn.PchelintsevNI;
+
+import ru.mirea.pkmn.*;
 
 import java.io.*;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class CardImport {

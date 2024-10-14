@@ -1,4 +1,6 @@
-package ru.mirea.PchelintsevNI.pkmn;
+package ru.mirea.pkmn.PchelintsevNI;
+
+import ru.mirea.pkmn.Card;
 
 public class PkmnApplication {
     public static void main(String[] args) {

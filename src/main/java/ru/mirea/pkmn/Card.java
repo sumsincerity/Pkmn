@@ -1,4 +1,4 @@
-package ru.mirea.PchelintsevNI.pkmn;
+package ru.mirea.pkmn;
 
 import java.io.Serializable;
 import java.util.List;

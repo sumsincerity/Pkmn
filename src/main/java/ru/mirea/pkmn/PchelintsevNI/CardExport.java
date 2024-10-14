@@ -1,4 +1,6 @@
-package ru.mirea.PchelintsevNI.pkmn;
+package ru.mirea.pkmn.PchelintsevNI;
+
+import ru.mirea.pkmn.Card;
 
 import java.io.FileOutputStream;
 import java.io.IOException;

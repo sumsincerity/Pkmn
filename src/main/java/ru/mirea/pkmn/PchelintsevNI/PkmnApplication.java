@@ -4,7 +4,6 @@ import ru.mirea.pkmn.AttackSkill;
 import ru.mirea.pkmn.Card;
 import ru.mirea.pkmn.PchelintsevNI.web.http.PkmnHttpClient;
 import ru.mirea.pkmn.PchelintsevNI.web.jdbc.DatabaseServiceImpl;
-
 import java.io.IOException;
 import java.io.Serializable;
 import java.sql.SQLException;
@@ -13,7 +12,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class PkmnApplication implements Serializable {
-    public static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 1L;
 
     public static void main(String[] args) throws IOException, SQLException {
         CardImport imp = new CardImport();
@@ -21,21 +20,16 @@ public class PkmnApplication implements Serializable {
         Card cardEI;
 
         Scanner scanner = new Scanner(System.in);
-        System.out.println("1 - import fr txt");
-        System.out.println("2 - import fr byte");
-        System.out.println("3 - parse");
+        System.out.println("Нажмите 1, чтобы импортировать из txt файла");
+        System.out.println("Нажмите 2, чтобы импортировать из crd файла");
+        System.out.println("Нижмите 3, чтобы найти покеиона в базе данных");
 
         int choice = scanner.nextInt();
-        if (choice == 0){
-            System.out.println("\n");
-        }
-        else if (choice == 1) {
-            // Импорт из текстового файла
+        if (choice == 1) {
             cardEI = imp.importCards(".\\src\\main\\resources\\my_card.txt");
             exp.exportCard(cardEI);
             System.out.printf(cardEI.toString());
         } else if (choice == 2) {
-            // Импорт из бинарного файла
             cardEI = imp.importCardByte(".\\src\\main\\resources\\ChesnaughtV.crd");
             System.out.printf(cardEI.toString());
         } else if (choice == 3) {
@@ -44,7 +38,6 @@ public class PkmnApplication implements Serializable {
             PkmnHttpClient pkmnHttpClient = new PkmnHttpClient();
             JsonNode card1 = pkmnHttpClient.getPokemonCard(card.getName(), card.getNumber());
             System.out.println(card1.toPrettyString());
-
 
             Stream<JsonNode> stream = card1.findValues("attacks").stream();
             JsonNode attacks = stream.toList().getFirst();
@@ -61,7 +54,7 @@ public class PkmnApplication implements Serializable {
             cardExport.exportCard(card);
 
             db.saveCardToDatabase(card);
-            System.out.println("имя покемона введи да");
+            System.out.println("Имя покемона:");
             String selectedPokemon = scanner.next();
 
             Card card2 = db.getCardFromDatabase(selectedPokemon);

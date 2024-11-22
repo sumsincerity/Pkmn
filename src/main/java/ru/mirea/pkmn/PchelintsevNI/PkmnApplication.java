@@ -1,69 +1,84 @@
 package ru.mirea.pkmn.PchelintsevNI;
-import com.fasterxml.jackson.databind.JsonNode;
-import ru.mirea.pkmn.AttackSkill;
+
+
 import ru.mirea.pkmn.Card;
+import ru.mirea.pkmn.AttackSkill;
+import com.fasterxml.jackson.databind.JsonNode;
 import ru.mirea.pkmn.PchelintsevNI.web.http.PkmnHttpClient;
+import ru.mirea.pkmn.PchelintsevNI.web.jdbc.DatabaseService;
 import ru.mirea.pkmn.PchelintsevNI.web.jdbc.DatabaseServiceImpl;
+
+
 import java.io.IOException;
-import java.io.Serializable;
 import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Scanner;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class PkmnApplication implements Serializable {
-    private static final long serialVersionUID = 1L;
-
+public class PkmnApplication {
     public static void main(String[] args) throws IOException, SQLException {
-        CardImport imp = new CardImport();
-        CardExport exp = new CardExport();
-        Card cardEI;
 
+        Card card = new Card();
         Scanner scanner = new Scanner(System.in);
-        System.out.println("Нажмите 1, чтобы импортировать из txt файла");
-        System.out.println("Нажмите 2, чтобы импортировать из crd файла");
-        System.out.println("Нижмите 3, чтобы найти покеиона в базе данных");
+        DatabaseServiceImpl db = new DatabaseServiceImpl();
+        boolean flag = true;
 
-        int choice = scanner.nextInt();
-        if (choice == 1) {
-            cardEI = imp.importCards(".\\src\\main\\resources\\my_card.txt");
-            exp.exportCard(cardEI);
-            System.out.printf(cardEI.toString());
-        } else if (choice == 2) {
-            cardEI = imp.importCardByte(".\\src\\main\\resources\\ChesnaughtV.crd");
-            System.out.printf(cardEI.toString());
-        } else if (choice == 3) {
-            DatabaseServiceImpl db = new DatabaseServiceImpl();
-            Card card = imp.importCards(".\\src\\main\\resources\\my_card.txt");
-            PkmnHttpClient pkmnHttpClient = new PkmnHttpClient();
-            JsonNode card1 = pkmnHttpClient.getPokemonCard(card.getName(), card.getNumber());
-            System.out.println(card1.toPrettyString());
+        System.out.println(db.getCardFromDatabase("Chesnaught V"));
+        System.out.println(db.getStudentIdFromDatabase("Pchelintsev Nikita Igorevich"));
 
-            Stream<JsonNode> stream = card1.findValues("attacks").stream();
-            JsonNode attacks = stream.toList().getFirst();
-            stream.close();
-            for(JsonNode attack : attacks) {
-                for(AttackSkill skill : card.getSkills()) {
-                    if(skill.getName().equals(attack.findValue("name").asText())) {
-                        skill.setDescription(attack.findValue("text").asText());
-                    }
+        System.out.println("0 - Выход");
+        System.out.println("1 - парсинг ноут умений");
+        System.out.println("2 - сохранение карточки в бд");
+        System.out.println("3 - есть ли карта в бд)");
+
+
+        while (flag) {
+            int input = scanner.nextInt();
+
+            if (input == 0) {
+                flag = false;
+            } else if (input == 1) {
+                card = CardImport.importCard("src/main/resources/my_card.txt");
+                System.out.println(card);
+                updateSkills(card);
+                System.out.println(card);
+            } else if (input == 2) {
+                card = CardImport.importCard("src/main/resources/my_card.txt");
+                updateSkills(card, false);
+                db.saveCardToDatabase(card);
+                System.out.println(db.getCardFromDatabase(card.getName()));
+            } else if (input == 3) {
+                card = CardImport.importCard("src/main/resources/my_card.txt");
+                System.out.println(db.getCardFromDatabase(card.getName()));
+            }
+        }
+
+    }
+    public static void updateSkills(Card card) throws IOException {
+        updateSkills(card, true);
+    }
+
+    public static void updateSkills(Card card, boolean flag) throws IOException {
+        if(card.getEvolvesFrom() != null)
+            updateSkills(card.getEvolvesFrom(), flag);
+        PkmnHttpClient pkmnHttpClient = new PkmnHttpClient();
+        JsonNode card_jn = pkmnHttpClient.getPokemonCard(card.getName(), card.getNumber());
+        if (flag)
+            System.out.println(card_jn.toPrettyString());
+
+
+        Stream<JsonNode> stream = card_jn.findValues("attacks").stream();
+        JsonNode attacks = stream.toList().getFirst();
+
+        for(JsonNode attack : attacks) {
+            for(AttackSkill skill : card.getSkills()) {
+                if(skill.getName().equals(attack.findValue("name").asText())) {
+                    skill.setDescription(attack.findValue("text").asText());
                 }
             }
-
-            CardExport cardExport = new CardExport();
-            cardExport.exportCard(card);
-
-            db.saveCardToDatabase(card);
-            System.out.println("Имя покемона:");
-            String selectedPokemon = scanner.next();
-
-            Card card2 = db.getCardFromDatabase(selectedPokemon);
-            System.out.println(card2);
         }
-        else {
-            System.out.println("Неверный выбор. Завершение программы.");
-            return;
-        }
-        scanner.close();
+        stream.close();
     }
 }

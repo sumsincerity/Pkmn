@@ -1,13 +1,14 @@
 package ru.mirea.pkmn.PchelintsevNI.web.jdbc;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.mirea.pkmn.*;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.sql.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
@@ -15,28 +16,27 @@ import java.util.UUID;
 public class DatabaseServiceImpl implements DatabaseService {
 
     private final Connection connection;
+
     private final Properties databaseProperties;
-    private static final Gson GSON = new Gson();
-    private static final String DATABASE_PROPERTIES_PATH = "src/main/resources/database.properties";
 
     public DatabaseServiceImpl() throws SQLException, IOException {
-        // Load database properties
-        databaseProperties = new Properties();
-        try (FileInputStream propertiesFile = new FileInputStream(DATABASE_PROPERTIES_PATH)) {
-            databaseProperties.load(propertiesFile);
-        }
 
-        // Establish a connection to the database
+        // Загружаем файл database.properties
+
+        databaseProperties = new Properties();
+        databaseProperties.load(new FileInputStream("src/main/resources/database.properties"));
+
+        // Подключаемся к базе данных
+
         connection = DriverManager.getConnection(
                 databaseProperties.getProperty("database.url"),
                 databaseProperties.getProperty("database.user"),
                 databaseProperties.getProperty("database.password")
         );
-
-        System.out.println("Connection is " + (connection.isValid(0) ? "up" : "down"));
+        System.out.println("Connection is "+(connection.isValid(0) ? "up" : "down"));
     }
 
-    private Card mapResultSetToCard(ResultSet rs) throws SQLException {
+    private Card mapResultSetToCard(ResultSet rs) throws SQLException, JsonProcessingException {
         Card card = new Card();
         card.setName(rs.getString("name"));
         card.setNumber(rs.getString("card_number"));
@@ -45,11 +45,18 @@ public class DatabaseServiceImpl implements DatabaseService {
         card.setPokemonType(EnergyType.valueOf(rs.getString("pokemon_type")));
 
         String evolvesFrom = rs.getString("evolves_from");
-        card.setEvolvesFrom(evolvesFrom != null ? getCardFromDatabaseByUUID(UUID.fromString(evolvesFrom)) : null);
+        card.setEvolvesFrom(evolvesFrom != null ? getCardFromDatabaseById(UUID.fromString(evolvesFrom)) : null);
 
-        // Deserialize attack skills
-        Type type = new TypeToken<List<AttackSkill>>() {}.getType();
-        card.setSkills(GSON.fromJson(rs.getString("attack_skills"), type));
+        JsonNode attacks_json = new ObjectMapper().readTree(rs.getString("attack_skills"));
+        List<AttackSkill> attack_skills = new ArrayList<>();
+        for(JsonNode attack : attacks_json) {
+            attack_skills.add(new AttackSkill(attack.findValue("name").asText(),
+                    (attack.findValue("text") != null ?
+                            attack.findValue("text").asText() : ""),
+                    attack.findValue("cost").asText(),
+                    attack.findValue("damage").asInt()));
+        }
+        card.setSkills(attack_skills);
 
         card.setWeaknessType(rs.getString("weakness_type") != null
                 ? EnergyType.valueOf(rs.getString("weakness_type")) : null);
@@ -59,15 +66,66 @@ public class DatabaseServiceImpl implements DatabaseService {
         card.setRetreatCost(rs.getString("retreat_cost"));
         card.setGameSet(rs.getString("game_set"));
         card.setRegulationMark(rs.getString("regulation_mark").charAt(0));
-
+        // if(!rs.next()) return card;
         String pokemonOwner = rs.getString("pokemon_owner");
         card.setPokemonOwner(pokemonOwner != null ? getStudentFromDatabaseById(UUID.fromString(pokemonOwner)) : null);
-
         return card;
     }
 
+    private Student mapResultSetToStudent(ResultSet rs) throws SQLException {
+        return new Student(
+                rs.getString("firstName"),
+                rs.getString("familyName"),
+                rs.getString("patronicName"),
+                rs.getString("group")
+        );
+    }
+
+    public Card getCardFromDatabaseById(UUID uuid)  throws SQLException, JsonProcessingException {
+        String query = "SELECT * FROM card WHERE \"id\" = ?";
+        try (PreparedStatement ps = connection.prepareStatement(query)) {
+            ps.setObject(1, uuid);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? mapResultSetToCard(rs) : null;
+            }
+        }
+    }
+
+    public Student getStudentFromDatabaseById(UUID uuid) throws SQLException {
+        String query = "SELECT * FROM student WHERE \"id\" = ?";
+        try (PreparedStatement ps = connection.prepareStatement(query)) {
+            ps.setObject(1, uuid);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? mapResultSetToStudent(rs) : null;
+            }
+        }
+    }
+
+    public UUID getCardIdFromDatabase(String cardName) throws SQLException, JsonProcessingException {
+        String query = "SELECT * FROM card WHERE name = ?";
+        try (PreparedStatement ps = connection.prepareStatement(query)) {
+            ps.setString(1, cardName);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? UUID.fromString(rs.getString("id")) : null;
+            }
+        }
+    }
+
+    public UUID getStudentIdFromDatabase(String studentFullName) throws SQLException {
+        String[] split = studentFullName.split(" ");
+        String query = "SELECT * FROM student WHERE \"familyName\" = ? AND \"firstName\" = ? AND \"patronicName\" = ?";
+        try (PreparedStatement ps = connection.prepareStatement(query)) {
+            ps.setString(1, split[0]);
+            ps.setString(2, split[1]);
+            ps.setString(3, split[2]);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? UUID.fromString(rs.getString("id")) : null;
+            }
+        }
+    }
+
     @Override
-    public Card getCardFromDatabase(String cardName) throws SQLException {
+    public Card getCardFromDatabase(String cardName) throws SQLException, JsonProcessingException {
         String query = "SELECT * FROM card WHERE name = ?";
         try (PreparedStatement ps = connection.prepareStatement(query)) {
             ps.setString(1, cardName);
@@ -77,35 +135,9 @@ public class DatabaseServiceImpl implements DatabaseService {
         }
     }
 
-    private Card getCardFromDatabaseByUUID(UUID cardId) throws SQLException {
-        String query = "SELECT * FROM card WHERE id = ?";
-        try (PreparedStatement ps = connection.prepareStatement(query)) {
-            ps.setObject(1, cardId);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? mapResultSetToCard(rs) : null;
-            }
-        }
-    }
-
     @Override
-    public Student getStudentFromDatabaseById(UUID uuid) throws SQLException {
-        String query = "SELECT * FROM student WHERE \"id\" = ?";
-        try (PreparedStatement statement = connection.prepareStatement(query)) {
-            statement.setObject(1, uuid);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                if (resultSet.next()) {
-                    return mapResultSetToStudent(resultSet);
-                }
-            }
-        }
-        return null;
-    }
-
-    @Override
-    public Student getStudentFromDatabase(String studentName) throws SQLException {
-        if (studentName == null) return null;
-
-        String[] split = studentName.split(" ");
+    public Student getStudentFromDatabase(String studentFullName) throws SQLException {
+        String[] split = studentFullName.split(" ");
         String query = "SELECT * FROM student WHERE \"familyName\" = ? AND \"firstName\" = ? AND \"patronicName\" = ?";
         try (PreparedStatement ps = connection.prepareStatement(query)) {
             ps.setString(1, split[0]);
@@ -117,39 +149,37 @@ public class DatabaseServiceImpl implements DatabaseService {
         }
     }
 
-    private Student mapResultSetToStudent(ResultSet rs) throws SQLException {
-        Student student = new Student(
-                rs.getString("firstName"),
-                rs.getString("familyName"),
-                rs.getString("patronicName"),
-                rs.getString("group")
-        );
-        return student;
-    }
-
-
     @Override
-    public void saveCardToDatabase(Card card) throws SQLException {
+    public void saveCardToDatabase(Card card) throws SQLException, JsonProcessingException {
         UUID evolvesFromId = null;
         if (card.getEvolvesFrom() != null) {
             evolvesFromId = getCardIdFromDatabase(card.getEvolvesFrom().getName());
-            if (evolvesFromId == null) {
+            while (evolvesFromId == null) {
                 saveCardToDatabase(card.getEvolvesFrom());
                 evolvesFromId = getCardIdFromDatabase(card.getEvolvesFrom().getName());
+                if(evolvesFromId != null)
+                    System.out.println("Create new card: id -> " + evolvesFromId
+                            + "name -> " + card.getEvolvesFrom().getName());
             }
         }
 
         UUID ownerId = null;
         if (card.getPokemonOwner() != null) {
-            ownerId = getStudentIdFromDatabase(card.getPokemonOwner());
-            if (ownerId == null) {
+            String studentFullName = card.getPokemonOwner().getSurName() + " " +
+                    card.getPokemonOwner().getFirstName() + " " + card.getPokemonOwner().getFamilyName();
+            ownerId = getStudentIdFromDatabase(studentFullName);
+
+            while (ownerId == null) {
                 createPokemonOwner(card.getPokemonOwner());
-                ownerId = getStudentIdFromDatabase(card.getPokemonOwner());
+                ownerId = getStudentIdFromDatabase(studentFullName);
+                if(ownerId != null)
+                    System.out.println("Create new owner: id -> " + ownerId + "name -> " + studentFullName);
             }
         }
 
         String query = "INSERT INTO card(id, name, hp, evolves_from, game_set, pokemon_owner, stage, retreat_cost, " +
-                "weakness_type, resistance_type, attack_skills, pokemon_type, regulation_mark, card_number) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::json, ?, ?, ?)";
+                "weakness_type, resistance_type, attack_skills, pokemon_type, regulation_mark, card_number)" +
+                " VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::json, ?, ?, ?)";
         try (PreparedStatement ps = connection.prepareStatement(query)) {
             ps.setObject(1, UUID.randomUUID());
             ps.setString(2, card.getName());
@@ -161,7 +191,7 @@ public class DatabaseServiceImpl implements DatabaseService {
             ps.setString(8, card.getRetreatCost());
             ps.setString(9, card.getWeaknessType() != null ? card.getWeaknessType().name() : null);
             ps.setString(10, card.getResistanceType() != null ? card.getResistanceType().name() : null);
-            ps.setString(11, GSON.toJson(card.getSkills()));
+            ps.setString(11, new ObjectMapper().writeValueAsString(card.getSkills()));
             ps.setString(12, card.getPokemonType().name());
             ps.setString(13, String.valueOf(card.getRegulationMark()));
             ps.setString(14, card.getNumber());
@@ -169,44 +199,16 @@ public class DatabaseServiceImpl implements DatabaseService {
         }
     }
 
-    private UUID getCardIdFromDatabase(String cardName) throws SQLException {
-        System.out.println("unlucky");
-        String query = "SELECT * FROM card WHERE \"name\" = ?";
-
-        try (PreparedStatement ps = connection.prepareStatement(query)) {
-            ps.setString(1, cardName);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return UUID.fromString(rs.getString("id"));
-                }
-            }
-        }
-        return null;
-    }
-
-    private UUID getStudentIdFromDatabase(Student student) throws SQLException {
-        String query = "SELECT * FROM student WHERE \"familyName\" = ? AND \"firstName\" = ? AND \"patronicName\" = ?";
-        try (PreparedStatement ps = connection.prepareStatement(query)) {
-            ps.setString(1, student.getSurName());
-            ps.setString(2, student.getFirstName());
-            ps.setString(3, student.getFamilyName());
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return UUID.fromString(rs.getString("id"));
-                }
-            }
-        }
-        return null;
-    }
     @Override
-    public void createPokemonOwner(Student student) throws SQLException {
-        String query = "INSERT INTO student(id, \"familyName\", \"firstName\", \"patronicName\", \"group\") VALUES(?, ?, ?, ?, ?)";
+    public void createPokemonOwner(Student owner) throws SQLException {
+        String query = "INSERT INTO student(id, \"familyName\", \"firstName\", \"patronicName\", \"group\") " +
+                "VALUES(?, ?, ?, ?, ?)";
         try (PreparedStatement ps = connection.prepareStatement(query)) {
             ps.setObject(1, UUID.randomUUID());
-            ps.setString(2, student.getFirstName());
-            ps.setString(3, student.getSurName());
-            ps.setString(4, student.getFamilyName());
-            ps.setString(5, student.getGroup());
+            ps.setString(2, owner.getFirstName());
+            ps.setString(3, owner.getSurName());
+            ps.setString(4, owner.getFamilyName());
+            ps.setString(5, owner.getGroup());
             ps.executeUpdate();
         }
     }

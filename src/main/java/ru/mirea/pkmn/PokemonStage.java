@@ -8,13 +8,11 @@ public enum PokemonStage {
     VMAX("VMAX");
 
     private String stage;
+
     PokemonStage(String stage) {
         this.stage = stage;
     }
 
     @Override
-    public String toString() {
-        return stage;
-    }
+    public String toString() {return stage;}
 }
-

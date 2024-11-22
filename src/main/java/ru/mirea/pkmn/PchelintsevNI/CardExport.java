@@ -7,16 +7,16 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 
 public class CardExport {
-    public void exportCard(Card card) {
-        String filename = card.getName() + ".crd"; // Получаем имя файла на основе имени покемона
+    public static void exportCard(Card card) {
+        String filename = card.getName() + ".crd";
 
         try (FileOutputStream fileOut = new FileOutputStream(filename);
              ObjectOutputStream objectOut = new ObjectOutputStream(fileOut)) {
 
-            objectOut.writeObject(card); // Сериализация объекта
+            objectOut.writeObject(card);
             System.out.println("Card exported as " + filename);
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("Error while exporting card: " + e.getMessage());
         }
     }
 }
